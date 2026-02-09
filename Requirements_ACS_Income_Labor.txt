@@ -1,0 +1,8 @@
+# Required R Packages
+tidyverse
+caret
+rpart
+ggplot2
+dplyr
+readr
+rmarkdown

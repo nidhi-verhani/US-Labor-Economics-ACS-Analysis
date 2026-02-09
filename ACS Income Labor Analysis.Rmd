@@ -1,0 +1,474 @@
+---
+title: "Project Final"
+author: "Parv Maru"
+date: "2025-05-25"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(scales)
+library(ggthemes)
+library(dplyr)
+library(readr)
+```
+
+```{r}
+# Loading all three datasets
+df_2021 <- read_csv("ipums_2021_data.csv")
+df_2022 <- read_csv("ipums_2022_data.csv")
+df_2023 <- read_csv("ipums_2023_data.csv")
+
+# Combining datasets
+df_combined <- bind_rows(df_2021, df_2022, df_2023)
+
+# Selecting relevant variables
+df_cleaned <- df_combined %>%
+  select(
+    YEAR, PERWT, SEX, AGE, EDUCD, EMPSTAT, INCTOT,
+    UHRSWORK, WKSWORK1, CLASSWKR,
+    MARST, RACE, HHINCOME
+  )
+
+# Converting codes to labels
+
+df_cleaned <- df_cleaned %>%
+  mutate(SEX = case_when(
+    SEX == 1 ~ "Male",
+    SEX == 2 ~ "Female",
+    SEX == 9 ~ NA_character_,
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(EDUCD = case_when(
+    EDUCD == 000 ~ "N/A or no schooling",
+    EDUCD == 001 ~ "N/A",
+    EDUCD == 002 ~ "No schooling completed",
+    EDUCD == 010 ~ "Nursery school to grade 4",
+    EDUCD == 011 ~ "Nursery school, preschool",
+    EDUCD == 012 ~ "Kindergarten",
+    EDUCD == 013 ~ "Grade 1, 2, 3, or 4",
+    EDUCD == 014 ~ "Grade 1",
+    EDUCD == 015 ~ "Grade 2",
+    EDUCD == 016 ~ "Grade 3",
+    EDUCD == 017 ~ "Grade 4",
+    EDUCD == 020 ~ "Grade 5, 6, 7, or 8",
+    EDUCD == 021 ~ "Grade 5 or 6",
+    EDUCD == 022 ~ "Grade 5",
+    EDUCD == 023 ~ "Grade 6",
+    EDUCD == 024 ~ "Grade 7 or 8",
+    EDUCD == 025 ~ "Grade 7",
+    EDUCD == 026 ~ "Grade 8",
+    EDUCD == 030 ~ "Grade 9",
+    EDUCD == 040 ~ "Grade 10",
+    EDUCD == 050 ~ "Grade 11",
+    EDUCD == 060 ~ "Grade 12",
+    EDUCD == 061 ~ "12th grade, no diploma",
+    EDUCD == 062 ~ "High school graduate or GED",
+    EDUCD == 063 ~ "Regular high school diploma",
+    EDUCD == 064 ~ "GED or alternative credential",
+    EDUCD == 065 ~ "Some college, but less than 1 year",
+    EDUCD == 070 ~ "1 year of college",
+    EDUCD == 071 ~ "1+ years of college credit, no degree",
+    EDUCD == 080 ~ "2 years of college",
+    EDUCD == 081 ~ "Associate's degree, unspecified",
+    EDUCD == 082 ~ "Associate's degree, occupational",
+    EDUCD == 083 ~ "Associate's degree, academic",
+    EDUCD == 090 ~ "3 years of college",
+    EDUCD == 100 ~ "4 years of college",
+    EDUCD == 101 ~ "Bachelor's degree",
+    EDUCD == 110 ~ "5+ years of college",
+    EDUCD == 111 ~ "6 years of college",
+    EDUCD == 112 ~ "7 years of college",
+    EDUCD == 113 ~ "8+ years of college",
+    EDUCD == 114 ~ "Master's degree",
+    EDUCD == 115 ~ "Professional degree",
+    EDUCD == 116 ~ "Doctoral degree",
+    EDUCD == 999 ~ NA_character_,
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(EMPSTAT = case_when(
+    EMPSTAT == 0 ~ "N/A",
+    EMPSTAT == 1 ~ "Employed",
+    EMPSTAT == 2 ~ "Unemployed",
+    EMPSTAT == 3 ~ "Not in labor force",
+    EMPSTAT == 9 ~ "Unknown/Illegible",
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(CLASSWKR = case_when(
+    CLASSWKR == 0 ~ "N/A",
+    CLASSWKR == 1 ~ "Self-employed",
+    CLASSWKR == 2 ~ "Works for wages",
+    CLASSWKR == 9 ~ "Unknown",
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(MARST = case_when(
+    MARST == 1 ~ "Married, spouse present",
+    MARST == 2 ~ "Married, spouse absent",
+    MARST == 3 ~ "Separated",
+    MARST == 4 ~ "Divorced",
+    MARST == 5 ~ "Widowed",
+    MARST == 6 ~ "Never married/single",
+    MARST == 9 ~ NA_character_,
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(RACE = case_when(
+    RACE == 1 ~ "White",
+    RACE == 2 ~ "Black/African American",
+    RACE == 3 ~ "American Indian or Alaska Native",
+    RACE == 4 ~ "Chinese",
+    RACE == 5 ~ "Japanese",
+    RACE == 6 ~ "Other Asian or Pacific Islander",
+    RACE == 7 ~ "Other race, nec",
+    RACE == 8 ~ "Two major races",
+    RACE == 9 ~ "Three or more major races",
+    TRUE ~ NA_character_
+  ))
+
+df_cleaned <- df_cleaned %>%
+  mutate(HHINCOME = ifelse(HHINCOME == 9999999, NA, HHINCOME))
+
+df_cleaned <- df_cleaned %>%
+  filter(HHINCOME >= 0 | is.na(HHINCOME))
+df_cleaned <- df_cleaned %>%
+  drop_na(
+    YEAR, PERWT, SEX, AGE, EDUCD, EMPSTAT, INCTOT,
+    UHRSWORK, WKSWORK1, CLASSWKR, MARST, RACE, HHINCOME
+  )
+# Cleaning income fields: remove top-coded and invalid values
+df_cleaned <- df_cleaned %>%
+  mutate(
+    HHINCOME = ifelse(HHINCOME == 9999999 | HHINCOME < 0, NA, HHINCOME),
+    INCTOT   = ifelse(INCTOT == 9999999 | INCTOT < 0, NA, INCTOT)
+  )
+
+# clean UHRSWORK and WKSWORK1 to drop zero or invalid hours
+df_cleaned <- df_cleaned %>%
+  mutate(
+    UHRSWORK = ifelse(UHRSWORK <= 0, NA, UHRSWORK),
+    WKSWORK1 = ifelse(WKSWORK1 <= 0, NA, WKSWORK1)
+  )
+
+# Dropping all rows with any NA in the selected variables
+df_cleaned <- df_cleaned %>%
+  drop_na(
+    YEAR, PERWT, SEX, AGE, EDUCD, EMPSTAT, INCTOT,
+    UHRSWORK, WKSWORK1, CLASSWKR, MARST, RACE, HHINCOME)
+
+# Saving the cleaned dataset
+write_csv(df_cleaned, "ipums_final_cleaned_2021_2023.csv")
+```
+
+```{r load-data}
+# Load data
+data <- read.csv("ipums_final_cleaned_2021_2023.csv")
+# Create derived columns
+# Hourly wage
+data <- data %>%
+  mutate(hourly_wage = ifelse(UHRSWORK > 0 & WKSWORK1 > 0,
+                              INCTOT / (UHRSWORK * WKSWORK1), NA))
+
+# Age group
+data <- data %>%
+  mutate(age_group = case_when(
+    AGE < 25 ~ "16–24",
+    AGE < 45 ~ "25–44",
+    AGE < 65 ~ "45–64",
+    TRUE     ~ "65+"
+  ))
+```
+
+
+
+
+## Research Q1 - Research Question 1: How does educational attainment affect income and employment?
+```{r}
+# Filter only employed individuals
+employed_data <- data %>% 
+  filter(EMPSTAT == "Employed", INCTOT > 0)
+
+# Calculate mean income by education
+edu_income_summary <- employed_data %>%
+  group_by(EDUCD) %>%
+  summarise(mean_income = mean(INCTOT, na.rm = TRUE)) %>%
+  arrange(desc(mean_income)) %>%
+  slice(1:5)  # Top 5 education levels by income
+
+# Plot
+ggplot(edu_income_summary, aes(x = reorder(EDUCD, mean_income), y = mean_income)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = paste0("$", round(mean_income, 0))), 
+            vjust = -0.5, size = 3.5) +
+  labs(title = "Top 5 Education Levels by Average Income (Employed Only)",
+       x = "Education Level", y = "Average Total Income (USD)") +
+  scale_y_continuous(labels = scales::dollar_format()) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+
+
+
+## 1. Employment Rate for Top 5 Education Levels by Income
+```{r}
+# Calculate employment rate and income for top 5 education levels
+edu_summary <- data %>%
+  filter(INCTOT > 0, !is.na(EDUCD), !is.na(EMPSTAT)) %>%
+  group_by(EDUCD) %>%
+  summarise(
+    mean_income = mean(INCTOT, na.rm = TRUE),
+    employment_rate = mean(EMPSTAT == "Employed", na.rm = TRUE),
+    count = n()
+  ) %>%
+  arrange(desc(mean_income)) %>%
+  slice(1:5)  # Take top 5 by income
+
+# Plot
+ggplot(edu_summary, aes(x = reorder(EDUCD, employment_rate), y = employment_rate)) +
+  geom_line(group = 1, color = "steelblue", size = 1.2) +
+  geom_point(color = "steelblue", size = 3) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 0.1)) +
+  labs(title = "Employment Rate for Top 5 Education Levels by Income",
+       x = "Education Level", y = "Employment Rate (%)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+
+## Research Q2: How does gender influence employment access over time 
+## 2(A). Employment Rate by Gender Over Time
+```{r}
+emp_gender_year <- data %>%
+  mutate(employed_flag = ifelse(EMPSTAT == "Employed", 1, 0)) %>%
+  group_by(YEAR, SEX) %>%
+  summarise(employment_rate = mean(employed_flag, na.rm = TRUE))
+
+ggplot(emp_gender_year, aes(x = YEAR, y = employment_rate, color = SEX)) +
+  geom_point(size = 3) +
+  geom_line(size = 1.5, aes(group = SEX), stat = "smooth", method = "loess", se = FALSE, span = 1) +
+  scale_x_continuous(breaks = c(2021, 2022, 2023)) +
+  scale_y_continuous(labels = percent_format()) +
+  labs(title = "Employment Rate by Gender Over Time",
+       x = "Year", y = "% Employed", color = "Gender") +
+  theme_minimal()
+```
+
+## 2B. Average Income by Age (All Years Combined)
+```{r}
+income_by_age <- data %>%
+  group_by(AGE) %>%
+  summarise(mean_income = mean(INCTOT, na.rm = TRUE))
+
+ggplot(income_by_age, aes(x = AGE, y = mean_income)) +
+  geom_line(color = "darkblue", size = 1.2,linetype = "solid") +
+  labs(title = "Average Total Income by Age",
+       x = "Age", y = "Mean Total Income (USD)") +
+  scale_y_continuous(labels = dollar_format()) +
+  theme_minimal()
+```
+
+## 3. Household Income by Marital Status
+```{r}
+marital_income <- data %>%
+  group_by(MARST) %>%
+  summarise(mean_income = mean(HHINCOME, na.rm = TRUE))
+
+ggplot(marital_income, aes(x = reorder(MARST, mean_income), y = mean_income, fill = MARST)) +
+  geom_col() +
+  coord_flip() +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(title = "Average Household Income by Marital Status",
+       x = "Marital Status", y = "Mean Household Income") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Research Q3: Do More Work Hours Always Lead to Higher Individual Income?
+## 4. Income vs Weekly Hours Worked
+```{r}
+income_hours <- data %>%
+  filter(!is.na(hourly_wage) & hourly_wage < 500) %>%
+  group_by(UHRSWORK) %>%
+  summarise(mean_income = mean(INCTOT, na.rm = TRUE)) %>%
+  filter(UHRSWORK >= 10 & UHRSWORK <= 60)
+
+ggplot(income_hours, aes(x = UHRSWORK, y = mean_income)) +
+  geom_point(color = "purple", alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE, color = "purple", linewidth = 1.3) +
+  scale_y_continuous(labels = dollar_format()) +
+  labs(
+    title = "How Weekly Hours Worked Affects Total Income",
+    x = "Usual Weekly Hours Worked",
+    y = "Mean Total Income (USD)"
+  ) +
+  theme_minimal()
+```
+
+## Research Question 4: What factors are most useful for predicting income group and explaining income variation?
+# Log Transformation Linear Regression with Coefficient Plot
+```{r}
+# Load necessary packages
+library(dplyr)
+library(ggplot2)
+
+
+# Filter and prepare data
+data <- data %>%
+  filter(INCTOT > 0 & INCTOT < 300000, !is.na(SEX), !is.na(UHRSWORK), !is.na(EDUCD)) %>%
+  mutate(
+    SEX = as.factor(SEX),
+    EDU_SIMPLE = case_when(
+      EDUCD %in% c("No schooling completed", "Nursery school, preschool", "Kindergarten") ~ "No Schooling",
+      EDUCD %in% c("Grade 1", "Grade 2", "Grade 3", "Grade 4") ~ "Grades 1–4",
+      EDUCD %in% c("Grade 5", "Grade 6") ~ "Grades 5–6",
+      EDUCD %in% c("Grade 7", "Grade 8") ~ "Grades 7–8",
+      EDUCD %in% c("Grade 9", "Grade 10", "Grade 11") ~ "Grades 9–11",
+      EDUCD %in% c("12th grade, no diploma", "Regular high school diploma", "GED or alternative credential") ~ "High School",
+      grepl("Some college", EDUCD) ~ "Some College",
+      grepl("Associate", EDUCD) ~ "Associate Degree",
+      grepl("Bachelor", EDUCD) ~ "Bachelor's",
+      grepl("Master|Doctoral|Professional", EDUCD) ~ "Grad/Prof Degree",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(EDU_SIMPLE))
+
+data$EDU_SIMPLE <- factor(data$EDU_SIMPLE,
+  levels = c("No Schooling", "Grades 1–4", "Grades 5–6", "Grades 7–8",
+             "Grades 9–11", "High School", "Some College", "Associate Degree",
+             "Bachelor's", "Grad/Prof Degree"))
+
+# Log-transform income to reduce skew
+data$log_income <- log(data$INCTOT)
+
+# Run linear model
+model <- lm(log_income ~ EDU_SIMPLE + AGE + SEX + UHRSWORK, data = data)
+
+summary(model)
+
+
+# Extract and clean coefficients table
+coefs <- summary(model)$coefficients
+coef_df <- data.frame(
+  term = rownames(coefs),
+  estimate = coefs[, "Estimate"],
+  std_error = coefs[, "Std. Error"],
+  p_value = coefs[, "Pr(>|t|)"]
+)
+rownames(coef_df) <- NULL
+
+# Display coefficients (text output)
+print(coef_df)
+
+# Plot: Coefficient Effects (excluding intercept)
+coef_plot_df <- coef_df %>%
+  filter(term != "(Intercept)") %>%
+  mutate(term = gsub("EDU_SIMPLE", "", term)) %>%
+  arrange(estimate)
+
+ggplot(coef_plot_df, aes(x = reorder(term, estimate), y = estimate)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = round(estimate, 2)), vjust = -0.4, size = 3) +
+  labs(title = "Effect of Variables on Log Income",
+       x = "Variable", y = "Coefficient Estimate") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+```
+
+
+
+
+
+## Decision Tree
+```{r}
+# Load required packages
+library(dplyr)
+library(rpart)
+library(rpart.plot)
+
+
+# Clean and prepare the data
+data <- data %>%
+  filter(INCTOT > 0 & INCTOT < 300000) %>%
+  mutate(
+    IncomeGroup = cut(INCTOT,
+                      breaks = c(0, 50000, 100000, 300000),
+                      labels = c("Low", "Mid", "High")),
+    EDU_SIMPLE = case_when(
+      EDUCD %in% c("No schooling completed", "Nursery school, preschool", "Kindergarten") ~ "No Schooling",
+      EDUCD %in% c("Grade 1", "Grade 2", "Grade 3", "Grade 4") ~ "Grades 1–4",
+      EDUCD %in% c("Grade 5", "Grade 6") ~ "Grades 5–6",
+      EDUCD %in% c("Grade 7", "Grade 8") ~ "Grades 7–8",
+      EDUCD %in% c("Grade 9", "Grade 10", "Grade 11") ~ "Grades 9–11",
+      EDUCD %in% c("12th grade, no diploma", "Regular high school diploma", "GED or alternative credential") ~ "High School",
+      grepl("Some college", EDUCD) ~ "Some College",
+      grepl("Associate", EDUCD) ~ "Associate Degree",
+      grepl("Bachelor", EDUCD) ~ "Bachelor's",
+      grepl("Master|Doctoral|Professional", EDUCD) ~ "Grad/Prof Degree",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(EDU_SIMPLE), !is.na(SEX), !is.na(UHRSWORK), !is.na(AGE))
+
+# Set factor levels
+data$SEX <- as.factor(data$SEX)
+data$EDU_SIMPLE <- factor(data$EDU_SIMPLE,
+                          levels = c("No Schooling", "Grades 1–4", "Grades 5–6", "Grades 7–8", "Grades 9–11",
+                                     "High School", "Some College", "Associate Degree", "Bachelor's", "Grad/Prof Degree"))
+data$IncomeGroup <- factor(data$IncomeGroup, levels = c("Low", "Mid", "High"))
+
+# Build the decision tree
+tree_model <- rpart(IncomeGroup ~ EDU_SIMPLE + AGE + SEX + UHRSWORK,
+                    data = data, method = "class", cp = 0.002, maxdepth = 4)
+
+# Plot with valid color palette for multiclass classification
+rpart.plot(tree_model,
+           extra = 104,
+           box.palette = list("Reds", "Greys", "Greens"),  # Low = red, Mid = grey, High = green
+           main = "Income Group Prediction Tree (Education, Age, Gender, Hours)")
+
+
+
+```
+
+#Predicting the Accuracy of the Model
+```{r}
+
+# Split into training and testing sets
+set.seed(123)
+sample_index <- sample(1:nrow(data), size = 0.7 * nrow(data))
+train_data <- data[sample_index, ]
+test_data <- data[-sample_index, ]
+
+# Rebuild model on training set
+tree_model <- rpart(IncomeGroup ~ EDU_SIMPLE + AGE + SEX + UHRSWORK,
+                    data = train_data, method = "class", cp = 0.002, maxdepth = 4)
+
+# Predict on test set
+predictions <- predict(tree_model, newdata = test_data, type = "class")
+
+# Create confusion matrix
+conf_mat <- table(Predicted = predictions, Actual = test_data$IncomeGroup)
+
+# Print confusion matrix
+print(conf_mat)
+
+# Calculate accuracy
+accuracy <- sum(diag(conf_mat)) / sum(conf_mat)
+cat("Accuracy:", round(accuracy * 100, 2), "%\n")
+
+```
