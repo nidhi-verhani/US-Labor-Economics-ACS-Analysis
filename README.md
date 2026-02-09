@@ -15,12 +15,14 @@ Final_project_286B.Rmd – main R Markdown source code
 Final_project_286B.html – knitted HTML report
 ipums_final_cleaned_2021_2023.csv – dataset
 README.md – documentation
+
 📈 Key Findings
 Education and hours worked were the strongest predictors of income.
 Gender gap: Males earned ~23% higher median income on average.
 State variation: Income varied significantly by state, reflecting local labor conditions.
 Regression model: Achieved R² = 0.81, explaining 81% of income variation.
 Decision tree model: Provided interpretable splits on education level and work hours, highlighting clear thresholds for higher income groups.
+
 🧩 Steps in the Analysis
 Data Cleaning – handled missing values, recoded categorical variables.
 EDA – visualized income distribution by gender, education, and state.
